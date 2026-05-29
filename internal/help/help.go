@@ -132,6 +132,35 @@ var (
 		},
 	}
 
+	SkillScope = CommandHelp{
+		Command:     "skill-scope",
+		Description: "Set the visibility scope of a skill.",
+		Parameters: []string{
+			"skillName       Required. Skill name",
+			"--scope         Required. Visibility scope: PUBLIC or PRIVATE",
+		},
+		Examples: []string{
+			"# Make a skill public",
+			"skill-scope my-skill --scope PUBLIC",
+			"",
+			"# Make a skill private",
+			"skill-scope my-skill --scope PRIVATE",
+		},
+	}
+
+	SkillTags = CommandHelp{
+		Command:     "skill-tags",
+		Description: "Set metadata tags for a skill.",
+		Parameters: []string{
+			"skillName       Required. Skill name",
+			"--tags          Required. Skill metadata tags, for example retail,finance",
+		},
+		Examples: []string{
+			"# Set metadata tags",
+			"skill-tags my-skill --tags retail,finance",
+		},
+	}
+
 	SkillDescribe = CommandHelp{
 		Command:     "skill-describe",
 		Description: "Show detailed info of a single skill, including governance metadata and the full version list with per-version status (editing/reviewing/online/offline).",

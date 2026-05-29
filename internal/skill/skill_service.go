@@ -195,6 +195,105 @@ func (s *SkillService) DescribeSkill(skillName string) (*SkillDetail, error) {
 	return &detail, nil
 }
 
+// UpdateSkillScope sets the skill visibility scope (PUBLIC or PRIVATE).
+func (s *SkillService) UpdateSkillScope(skillName, scope string) error {
+	if err := s.client.EnsureTokenValid(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(skillName) == "" {
+		return fmt.Errorf("skillName is required")
+	}
+	normalizedScope, err := normalizeSkillScope(scope)
+	if err != nil {
+		return err
+	}
+
+	params := url.Values{}
+	params.Set("namespaceId", s.client.Namespace)
+	params.Set("skillName", skillName)
+	params.Set("scope", normalizedScope)
+
+	scopeURL := fmt.Sprintf("http://%s/nacos/v3/admin/ai/skills/scope?%s",
+		s.client.ServerAddr, params.Encode())
+	req, err := s.client.NewAuthedRequest("PUT", scopeURL, nil)
+	if err != nil {
+		return err
+	}
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("update skill scope failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	return checkV3Response(resp, "update skill scope")
+}
+
+// UpdateSkillBizTags sets skill metadata tags.
+func (s *SkillService) UpdateSkillBizTags(skillName, bizTags string) error {
+	if err := s.client.EnsureTokenValid(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(skillName) == "" {
+		return fmt.Errorf("skillName is required")
+	}
+	bizTags = strings.TrimSpace(bizTags)
+	if bizTags == "" {
+		return fmt.Errorf("bizTags are required")
+	}
+
+	params := url.Values{}
+	params.Set("namespaceId", s.client.Namespace)
+	params.Set("skillName", skillName)
+	params.Set("bizTags", bizTags)
+
+	bizTagsURL := fmt.Sprintf("http://%s/nacos/v3/admin/ai/skills/biz-tags?%s",
+		s.client.ServerAddr, params.Encode())
+	req, err := s.client.NewAuthedRequest("PUT", bizTagsURL, nil)
+	if err != nil {
+		return err
+	}
+
+	httpClient := &http.Client{}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("update skill bizTags failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	return checkV3Response(resp, "update skill bizTags")
+}
+
+func normalizeSkillScope(scope string) (string, error) {
+	normalized := strings.ToUpper(strings.TrimSpace(scope))
+	switch normalized {
+	case "PUBLIC", "PRIVATE":
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("scope must be PUBLIC or PRIVATE")
+	}
+}
+
+func checkV3Response(resp *http.Response, operation string) error {
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("read %s response failed: %w", operation, err)
+	}
+	if resp.StatusCode != 200 {
+		return client.ParseHTTPError(resp.StatusCode, respBody, operation)
+	}
+
+	var v3Resp V3Response
+	if err := json.Unmarshal(respBody, &v3Resp); err != nil {
+		return fmt.Errorf("parse %s response failed: %w", operation, err)
+	}
+	if v3Resp.Code != 0 {
+		return fmt.Errorf("%s failed: code=%d, message=%s", operation, v3Resp.Code, v3Resp.Message)
+	}
+	return nil
+}
+
 // GetSkill downloads a skill as ZIP via the Client Skill API and extracts it to local directory.
 // The server returns a ZIP binary stream containing skillName/SKILL.md and resource files.
 // Priority for version resolution: label > version > latest.

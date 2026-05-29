@@ -60,7 +60,7 @@ func TestUploadSkillOnlyUploadsDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	nacosClient, err := client.NewNacosClient(strings.TrimPrefix(server.URL, "http://"), "test-ns", client.AuthTypeToken, "", "", "", "", "token")
+	nacosClient, err := newTestNacosClient(server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestSubmitSkillSendsFormParams(t *testing.T) {
 	}))
 	defer server.Close()
 
-	nacosClient, err := client.NewNacosClient(strings.TrimPrefix(server.URL, "http://"), "test-ns", client.AuthTypeToken, "", "", "", "", "token")
+	nacosClient, err := newTestNacosClient(server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,4 +108,93 @@ func TestSubmitSkillSendsFormParams(t *testing.T) {
 	if !submitCalled {
 		t.Fatal("submit was not called")
 	}
+}
+
+func TestUpdateSkillScopeSendsParams(t *testing.T) {
+	var scopeCalled bool
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/nacos/v3/admin/ai/skills/scope" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		scopeCalled = true
+		if r.Method != http.MethodPut {
+			t.Fatalf("scope method = %s, want PUT", r.Method)
+		}
+		if got := r.URL.Query().Get("namespaceId"); got != "test-ns" {
+			t.Fatalf("scope namespaceId = %s, want test-ns", got)
+		}
+		if got := r.URL.Query().Get("skillName"); got != "demo-skill" {
+			t.Fatalf("scope skillName = %s, want demo-skill", got)
+		}
+		if got := r.URL.Query().Get("scope"); got != "PUBLIC" {
+			t.Fatalf("scope = %s, want PUBLIC", got)
+		}
+		_ = json.NewEncoder(w).Encode(V3Response{Code: 0, Message: "success"})
+	}))
+	defer server.Close()
+
+	nacosClient, err := newTestNacosClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := NewSkillService(nacosClient).UpdateSkillScope("demo-skill", "public"); err != nil {
+		t.Fatal(err)
+	}
+	if !scopeCalled {
+		t.Fatal("scope was not called")
+	}
+}
+
+func TestUpdateSkillBizTagsSendsParams(t *testing.T) {
+	var bizTagsCalled bool
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/nacos/v3/admin/ai/skills/biz-tags" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		bizTagsCalled = true
+		if r.Method != http.MethodPut {
+			t.Fatalf("bizTags method = %s, want PUT", r.Method)
+		}
+		if got := r.URL.Query().Get("namespaceId"); got != "test-ns" {
+			t.Fatalf("bizTags namespaceId = %s, want test-ns", got)
+		}
+		if got := r.URL.Query().Get("skillName"); got != "demo-skill" {
+			t.Fatalf("bizTags skillName = %s, want demo-skill", got)
+		}
+		if got := r.URL.Query().Get("bizTags"); got != "retail,finance" {
+			t.Fatalf("bizTags = %s, want retail,finance", got)
+		}
+		_ = json.NewEncoder(w).Encode(V3Response{Code: 0, Message: "success"})
+	}))
+	defer server.Close()
+
+	nacosClient, err := newTestNacosClient(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := NewSkillService(nacosClient).UpdateSkillBizTags("demo-skill", "retail,finance"); err != nil {
+		t.Fatal(err)
+	}
+	if !bizTagsCalled {
+		t.Fatal("bizTags was not called")
+	}
+}
+
+func newTestNacosClient(serverURL string) (*client.NacosClient, error) {
+	return client.NewNacosClient(
+		strings.TrimPrefix(serverURL, "http://"),
+		"test-ns",
+		client.AuthTypeNone,
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+		"",
+	)
 }

@@ -101,6 +101,16 @@ func completer() *readline.PrefixCompleter {
 			readline.PcItem("--version"),
 			readline.PcItem("--update-latest"),
 		),
+		readline.PcItem("skill-scope",
+			readline.PcItem("--help"),
+			readline.PcItem("-h"),
+			readline.PcItem("--scope"),
+		),
+		readline.PcItem("skill-tags",
+			readline.PcItem("--help"),
+			readline.PcItem("-h"),
+			readline.PcItem("--tags"),
+		),
 		readline.PcItem("agentspec-list",
 			readline.PcItem("--help"),
 			readline.PcItem("-h"),
@@ -340,6 +350,18 @@ func (t *Terminal) handleCommand(input string) {
 		} else {
 			t.releaseSkill(args)
 		}
+	case "skill-scope", "skill-visibility":
+		if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
+			t.showSkillScopeHelp()
+		} else {
+			t.updateSkillScope(args)
+		}
+	case "skill-tags", "skill-biz-tags":
+		if len(args) > 0 && (args[0] == "--help" || args[0] == "-h") {
+			t.showSkillTagsHelp()
+		} else {
+			t.updateSkillTags(args)
+		}
 	case "skill-sync":
 		fmt.Println("\033[33mskill-sync has been removed.\033[0m")
 		fmt.Println("\033[90mUse 'skill-get' to download skills.\033[0m")
@@ -433,6 +455,8 @@ func (t *Terminal) showHelp() {
 	fmt.Printf("\033[32m%-20s\033[0m %-40s %-30s\n", "", "Upload all skills in directory", "skill-upload --all <folder>")
 	fmt.Printf("\033[32m%-20s\033[0m %-40s %-30s\n", "skill-review", "Submit a draft for review", "skill-review <name> [--version v1]")
 	fmt.Printf("\033[32m%-20s\033[0m %-40s %-30s\n", "skill-release", "Release an approved version", "skill-release <name> --version v1")
+	fmt.Printf("\033[32m%-20s\033[0m %-40s %-30s\n", "skill-scope", "Set skill visibility", "skill-scope <name> --scope PUBLIC")
+	fmt.Printf("\033[32m%-20s\033[0m %-40s %-30s\n", "skill-tags", "Set metadata tags", "skill-tags <name> --tags a,b")
 	fmt.Printf("\033[32m%-20s\033[0m %-40s %-30s\n", "skill-publish", "[DEPRECATED] upload + review", "skill-publish <path> (use skill-upload/review)")
 	fmt.Println()
 
@@ -635,6 +659,9 @@ func (t *Terminal) printSkillSummaryLine(idx int, s skill.SkillListItem) {
 	if s.Scope != "" {
 		meta = append(meta, "scope="+s.Scope)
 	}
+	if s.BizTags != "" {
+		meta = append(meta, "bizTags="+s.BizTags)
+	}
 	if s.Owner != "" {
 		meta = append(meta, "owner="+s.Owner)
 	}
@@ -697,6 +724,9 @@ func (t *Terminal) describeSkill(args []string) {
 	var meta []string
 	if detail.Scope != "" {
 		meta = append(meta, "scope="+detail.Scope)
+	}
+	if detail.BizTags != "" {
+		meta = append(meta, "bizTags="+detail.BizTags)
 	}
 	if detail.Owner != "" {
 		meta = append(meta, "owner="+detail.Owner)
@@ -1086,6 +1116,66 @@ func (t *Terminal) releaseSkill(args []string) {
 	fmt.Printf("Skill released successfully! %s@%s is now online.\n", skillName, version)
 }
 
+// updateSkillScope sets skill visibility scope.
+func (t *Terminal) updateSkillScope(args []string) {
+	if len(args) == 0 {
+		fmt.Println("Usage: skill-scope <skillName> --scope <PUBLIC|PRIVATE>")
+		return
+	}
+
+	skillName := args[0]
+	scope := ""
+	for i := 1; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--scope" && i+1 < len(args) {
+			i++
+			scope = args[i]
+		} else if strings.HasPrefix(arg, "--scope=") {
+			scope = strings.TrimPrefix(arg, "--scope=")
+		}
+	}
+	if scope == "" {
+		fmt.Println("Error: --scope is required for skill-scope")
+		return
+	}
+
+	if err := t.skillService.UpdateSkillScope(skillName, scope); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Skill scope updated successfully: %s -> %s\n", skillName, scope)
+}
+
+// updateSkillTags sets skill metadata tags.
+func (t *Terminal) updateSkillTags(args []string) {
+	if len(args) == 0 {
+		fmt.Println("Usage: skill-tags <skillName> --tags <tags>")
+		return
+	}
+
+	skillName := args[0]
+	tags := ""
+	for i := 1; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--tags" && i+1 < len(args) {
+			i++
+			tags = args[i]
+		} else if strings.HasPrefix(arg, "--tags=") {
+			tags = strings.TrimPrefix(arg, "--tags=")
+		}
+	}
+	if tags == "" {
+		fmt.Println("Error: --tags is required for skill-tags")
+		return
+	}
+
+	if err := t.skillService.UpdateSkillBizTags(skillName, tags); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+	fmt.Printf("Skill tags updated successfully: %s -> %s\n", skillName, tags)
+}
+
 // publishLegacy runs upload + review as a backward-compatible shortcut for the
 // deprecated skill-publish command.
 func (t *Terminal) publishLegacy(args []string) {
@@ -1414,6 +1504,14 @@ func (t *Terminal) showSkillReviewHelp() {
 
 func (t *Terminal) showSkillReleaseHelp() {
 	help.SkillRelease.FormatForTerminal()
+}
+
+func (t *Terminal) showSkillScopeHelp() {
+	help.SkillScope.FormatForTerminal()
+}
+
+func (t *Terminal) showSkillTagsHelp() {
+	help.SkillTags.FormatForTerminal()
 }
 
 func (t *Terminal) showConfigListHelp() {
