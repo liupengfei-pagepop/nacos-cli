@@ -88,6 +88,9 @@ func renderSkillDetailPretty(d *skill.SkillDetail) {
 	if d.Scope != "" {
 		meta = append(meta, "scope="+d.Scope)
 	}
+	if d.BizTags != "" {
+		meta = append(meta, "bizTags="+d.BizTags)
+	}
 	if d.Owner != "" {
 		meta = append(meta, "owner="+d.Owner)
 	}

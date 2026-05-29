@@ -291,6 +291,27 @@ nacos> skill-release skill-creator --version 0.0.2
 > `HTTP 400 parameter validate error` just after `skill-review`, wait and retry
 > when `skill-describe` shows the version as `reviewed`.
 
+#### Manage Skill Visibility and Tags
+
+Set skill visibility scope:
+
+```bash
+nacos-cli skill-scope skill-creator --scope PUBLIC
+nacos-cli skill-scope skill-creator --scope PRIVATE
+
+# Terminal mode
+nacos> skill-scope skill-creator --scope PUBLIC
+```
+
+Set skill metadata tags:
+
+```bash
+nacos-cli skill-tags skill-creator --tags retail,finance
+
+# Terminal mode
+nacos> skill-tags skill-creator --tags retail,finance
+```
+
 #### Publish Skill (deprecated)
 
 `skill-publish` is kept as a backward-compatible shortcut that runs
@@ -449,6 +470,8 @@ nacos-cli/
 │   ├── upload_skill.go        # skill-upload
 │   ├── review_skill.go        # skill-review
 │   ├── release_skill.go       # skill-release
+│   ├── update_skill_scope.go  # skill-scope
+│   ├── update_skill_tags.go   # skill-tags
 │   ├── publish_skill.go       # skill-publish (deprecated wrapper)
 │   ├── sync_skill.go          # skill-sync
 │   ├── list_agentspec.go      # agentspec-list

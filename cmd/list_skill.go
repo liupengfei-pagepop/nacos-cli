@@ -138,6 +138,9 @@ func printSkillListItem(idx int, s skill.SkillListItem) {
 	if s.Scope != "" {
 		meta = append(meta, "scope="+s.Scope)
 	}
+	if s.BizTags != "" {
+		meta = append(meta, "bizTags="+s.BizTags)
+	}
 	if s.Owner != "" {
 		meta = append(meta, "owner="+s.Owner)
 	}
