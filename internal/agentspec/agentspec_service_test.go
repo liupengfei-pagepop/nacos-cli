@@ -167,6 +167,7 @@ func TestUploadAgentSpecZipPaths(t *testing.T) {
 		"test-ns",
 		client.AuthTypeNone,
 		"", "", "", "", "", "", "",
+		"http",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -184,7 +185,7 @@ func TestUploadAgentSpecZipPaths(t *testing.T) {
 	}
 
 	expectedPaths := map[string]bool{
-		"AGENTSPEC.md":           false,
+		"AGENTSPEC.md":              false,
 		"resources/config/app.yaml": false,
 	}
 

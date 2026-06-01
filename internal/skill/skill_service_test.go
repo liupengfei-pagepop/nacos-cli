@@ -199,6 +199,7 @@ func newTestNacosClient(serverURL string) (*client.NacosClient, error) {
 		"",
 		"",
 		"",
+		"http",
 	)
 }
 
@@ -257,7 +258,7 @@ func TestUploadSkillZipPaths(t *testing.T) {
 	}
 
 	expectedPaths := map[string]bool{
-		"SKILL.md":                     false,
+		"SKILL.md":                      false,
 		"prompts/templates/default.txt": false,
 	}
 
