@@ -15,10 +15,11 @@ var uploadAll bool
 var uploadOverwrite bool
 
 var uploadSkillCmd = &cobra.Command{
-	Use:   "skill-upload [skillPath]",
-	Short: "Upload a skill to Nacos (as ZIP, creates an editing draft)",
-	Long:  help.SkillUpload.FormatForCLI("nacos-cli"),
-	Args:  cobra.MaximumNArgs(1),
+	Use:               "skill-upload [skillPath]",
+	Short:             "Upload a skill to Nacos (as ZIP, creates an editing draft)",
+	Long:              help.SkillUpload.FormatForCLI("nacos-cli"),
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: completePathArg(0),
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			fmt.Fprintf(os.Stderr, "Error: skill path required\n")
@@ -83,6 +84,9 @@ func uploadSingleSkill(skillPath string, skillService *skill.SkillService, overw
 
 	fmt.Printf("Skill draft uploaded successfully!\n")
 	fmt.Printf("  Tip: Use 'skill-review %s' to submit the draft for review.\n", skillName)
+
+	// Update sync state if skill is tracked
+	updateSyncStateAfterUpload(skillName, skillService, absPath)
 }
 
 func uploadAllSkills(folderPath string, skillService *skill.SkillService, overwrite bool) {
@@ -95,16 +99,7 @@ func uploadAllSkills(folderPath string, skillService *skill.SkillService, overwr
 	entries, err := os.ReadDir(folderPath)
 	checkError(err)
 
-	var skillDirs []string
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		skillMDPath := filepath.Join(folderPath, entry.Name(), "SKILL.md")
-		if _, err := os.Stat(skillMDPath); err == nil {
-			skillDirs = append(skillDirs, entry.Name())
-		}
-	}
+	skillDirs := discoverSkillDirs(folderPath, entries)
 
 	if len(skillDirs) == 0 {
 		fmt.Println("No skills found (directories with SKILL.md)")
@@ -131,6 +126,7 @@ func uploadAllSkills(folderPath string, skillService *skill.SkillService, overwr
 			failedCount++
 		} else {
 			fmt.Printf("Upload successful!\n")
+			updateSyncStateAfterUpload(skillName, skillService, skillPath)
 			successCount++
 		}
 		fmt.Println()
@@ -148,8 +144,59 @@ func uploadAllSkills(folderPath string, skillService *skill.SkillService, overwr
 	fmt.Println("Tip: Use 'skill-review <skillName>' to submit a draft for review.")
 }
 
+func discoverSkillDirs(folderPath string, entries []os.DirEntry) []string {
+	var skillDirs []string
+	for _, entry := range entries {
+		skillPath := filepath.Join(folderPath, entry.Name())
+		info, err := os.Stat(skillPath)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		skillMDPath := filepath.Join(skillPath, "SKILL.md")
+		if _, err := os.Stat(skillMDPath); err == nil {
+			skillDirs = append(skillDirs, entry.Name())
+		}
+	}
+	return skillDirs
+}
+
 func init() {
 	uploadSkillCmd.Flags().BoolVar(&uploadAll, "all", false, "Upload all skills in the directory")
 	uploadSkillCmd.Flags().Var(overwriteFlagValue{value: &uploadOverwrite}, "overwrite", "Whether to overwrite existing draft: true | false")
 	rootCmd.AddCommand(uploadSkillCmd)
+}
+
+// updateSyncStateAfterUpload refreshes the sync state after a successful upload.
+func updateSyncStateAfterUpload(skillName string, skillService *skill.SkillService, uploadedPath string) {
+	state, err := skill.LoadSyncState()
+	if err != nil {
+		return // Non-fatal: sync state might not exist yet
+	}
+
+	entry, ok := state.Skills[skillName]
+	if !ok {
+		return // Skill not tracked in sync state
+	}
+
+	localHash := entry.LocalHash
+	if info, err := os.Stat(uploadedPath); err == nil && info.IsDir() {
+		if hash, err := skill.ComputeDirectoryHash(uploadedPath); err == nil && hash != "" {
+			localHash = hash
+		}
+	} else if state.Repo != "" {
+		if hash, err := skill.ComputeDirectoryHash(filepath.Join(state.Repo, skillName)); err == nil && hash != "" {
+			localHash = hash
+		}
+	}
+
+	if err := skill.RecordUploadedSkill(state, &entry, skillService, localHash); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to update sync upload state: %v\n", err)
+		return
+	}
+
+	if err := skill.SaveSyncState(state); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to update sync state: %v\n", err)
+	} else {
+		fmt.Printf("  Sync state updated: %s → Uploaded (%s)\n", skillName, entry.UploadedVersion)
+	}
 }
