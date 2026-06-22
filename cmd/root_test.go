@@ -99,6 +99,70 @@ func TestPersistentPreRunDoesNotAutoDetectStsHiclaw(t *testing.T) {
 	}
 }
 
+func TestPersistentPreRunStsAgentTeamsUsesAgentTeamsEnv(t *testing.T) {
+	resetRootConfigForTest(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("NACOS_HOST", "127.0.0.1")
+	t.Setenv("NACOS_AUTH_TYPE", "sts-agentteams")
+	t.Setenv("HICLAW_CONTROLLER_URL", "http://hiclaw-controller")
+	t.Setenv("HICLAW_AUTH_TOKEN_FILE", filepath.Join(t.TempDir(), "hiclaw-token"))
+
+	tokenFile := filepath.Join(t.TempDir(), "agentteams-token")
+	if err := os.WriteFile(tokenFile, []byte("agentteams-token\n"), 0600); err != nil {
+		t.Fatalf("write token: %v", err)
+	}
+	t.Setenv("AGENTTEAMS_CONTROLLER_URL", "http://agentteams-controller/")
+	t.Setenv("AGENTTEAMS_AUTH_TOKEN_FILE", tokenFile)
+
+	rootCmd.PersistentPreRun(&cobra.Command{Use: "skill-list"}, nil)
+
+	if authType != "sts-agentteams" {
+		t.Fatalf("authType = %q, want sts-agentteams", authType)
+	}
+	if stsURL != "http://agentteams-controller/api/v1/credentials/sts" {
+		t.Fatalf("stsURL = %q, want agentteams controller STS URL", stsURL)
+	}
+	if stsAuthToken != "agentteams-token" {
+		t.Fatalf("stsAuthToken = %q, want agentteams-token", stsAuthToken)
+	}
+}
+
+func TestPersistentPreRunAuthTypeOverrideKeepsProfileConfig(t *testing.T) {
+	resetRootConfigForTest(t)
+	t.Setenv("HOME", t.TempDir())
+
+	profilePath, err := config.GetProfileConfigPath("dev")
+	if err != nil {
+		t.Fatalf("get profile path: %v", err)
+	}
+	cfg := &config.Config{
+		Host:      "10.0.0.2",
+		Port:      8848,
+		AuthType:  "none",
+		AccessKey: "profile-ak",
+		SecretKey: "profile-sk",
+	}
+	if err := cfg.SaveConfig(profilePath); err != nil {
+		t.Fatalf("save profile: %v", err)
+	}
+	if err := config.SetCurrentProfile("dev"); err != nil {
+		t.Fatalf("set current profile: %v", err)
+	}
+	authType = "aliyun"
+
+	rootCmd.PersistentPreRun(&cobra.Command{Use: "skill-list"}, nil)
+
+	if serverAddr != "10.0.0.2:8848" {
+		t.Fatalf("serverAddr = %q, want %q", serverAddr, "10.0.0.2:8848")
+	}
+	if authType != "aliyun" {
+		t.Fatalf("authType = %q, want aliyun", authType)
+	}
+	if accessKey != "profile-ak" || secretKey != "profile-sk" {
+		t.Fatalf("profile credentials not loaded: accessKey=%q secretKey=%q", accessKey, secretKey)
+	}
+}
+
 func TestSchemePriority_HttpHostOverridesProfileHttps(t *testing.T) {
 	resetRootConfigForTest(t)
 
