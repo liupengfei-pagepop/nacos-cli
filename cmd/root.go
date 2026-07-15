@@ -25,6 +25,7 @@ var (
 	accessKey     string
 	secretKey     string
 	securityToken string
+	token         string
 	stsURL        string
 	stsAuthToken  string
 	configFile    string
@@ -198,7 +199,7 @@ Examples:
 			password = fileConfig.Password
 		}
 
-		// AccessKey / SecretKey / SecurityToken: command line > config file
+		// AccessKey / SecretKey / SecurityToken / Token: command line > config file
 		if accessKey == "" && fileConfig != nil {
 			accessKey = fileConfig.AccessKey
 		}
@@ -207,6 +208,9 @@ Examples:
 		}
 		if securityToken == "" && fileConfig != nil {
 			securityToken = fileConfig.SecurityToken
+		}
+		if token == "" && fileConfig != nil {
+			token = fileConfig.Token
 		}
 
 		// Set default server address only when neither --host nor --port is provided.
@@ -355,12 +359,13 @@ func init() {
 	// Global flags - legacy style (for backward compatibility)
 	rootCmd.PersistentFlags().StringVarP(&serverAddr, "server", "s", "", "Nacos server address (e.g., market.hiclaw.io:80)")
 	rootCmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", "Namespace ID")
-	rootCmd.PersistentFlags().StringVar(&authType, "auth-type", "", "Auth type: nacos | aliyun | sts-hiclaw | sts-agentteams")
+	rootCmd.PersistentFlags().StringVar(&authType, "auth-type", "", "Auth type: token | nacos | aliyun | sts-hiclaw | sts-agentteams")
 	rootCmd.PersistentFlags().StringVarP(&username, "username", "u", "", "Username (nacos auth)")
 	rootCmd.PersistentFlags().StringVarP(&password, "password", "p", "", "Password (nacos auth)")
 	rootCmd.PersistentFlags().StringVar(&accessKey, "access-key", "", "AccessKey (aliyun/STS auth)")
 	rootCmd.PersistentFlags().StringVar(&secretKey, "secret-key", "", "SecretKey (aliyun/STS auth)")
 	rootCmd.PersistentFlags().StringVar(&securityToken, "security-token", "", "STS SecurityToken (STS auth)")
+	rootCmd.PersistentFlags().StringVar(&token, "token", "", "Bearer token")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "Enable verbose/debug output")
 
 	// Mark legacy server flag as deprecated but still functional
@@ -387,9 +392,14 @@ func currentTerminalProfileName() string {
 
 // mustNewNacosClient creates a NacosClient and exits with a clear error message on failure (e.g. login failed).
 func mustNewNacosClient() *client.NacosClient {
-	c, err := client.NewNacosClient(serverAddr, namespace, authType, username, password, accessKey, secretKey, securityToken, stsURL, stsAuthToken, scheme, func(c *client.NacosClient) {
-		c.Verbose = verbose
-	})
+	c, err := client.NewNacosClient(
+		serverAddr, namespace, authType, username, password,
+		accessKey, secretKey, securityToken, stsURL, stsAuthToken, scheme,
+		client.WithToken(token),
+		func(c *client.NacosClient) {
+			c.Verbose = verbose
+		},
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
